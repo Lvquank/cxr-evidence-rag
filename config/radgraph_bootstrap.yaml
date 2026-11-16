@@ -1,0 +1,28 @@
+# Reproducible RadGraph + paired-bootstrap protocol. Paths are project-relative.
+pairs_dir: data/evaluations/clinical_text_pairs_4pipelines
+output_dir: outputs/radgraph_bootstrap
+
+evaluation:
+  required_study_count: 206
+  expected_pipelines:
+    - structured_rule
+    - structured_learned_gate
+    - baseline_a
+    - baseline_b
+  # "fail" prevents a fabricated reference. "exclude" is allowed only for a
+  # documented primary analysis with the resulting study count reported.
+  empty_reference_policy: fail
+
+radgraph:
+  repo_path: third_party/radgraph
+  expected_repo_commit: 87f11a1ff4d2046a838be5f0243857d93780ddec
+  model_type: radgraph-xl
+  cache_dir: models/radgraph
+  # Leave null to use the active Python environment. Set a fully qualified
+  # executable only when RadGraph is installed in a dedicated environment.
+  python_executable: null
+
+bootstrap:
+  reference_pipeline: structured_rule
+  samples: 2000
+  seed: 20260904

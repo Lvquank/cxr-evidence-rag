@@ -1,0 +1,33 @@
+# Data ingestion and metadata
+pandas
+numpy
+pillow
+pydicom
+pyyaml
+tqdm
+scikit-image
+
+# Evaluation notebook, clinical text metrics, and Word report generation
+scikit-learn
+python-docx
+bert-score
+nltk
+rouge-score
+
+# RAD-DINO-MAIRA-2 image embeddings
+# CPU install: the two lines below install the default PyTorch build.
+# CUDA GPU install (Windows, example CUDA 11.8):
+#   python -m pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# Run the CUDA command after installing this file; it replaces the CPU wheels.
+torch>=2.2
+torchvision>=0.17
+transformers>=4.44,<5
+safetensors
+python-dotenv
+
+# Retrieval backends
+faiss-cpu
+chromadb
+
+# Optional legacy text-embedding workflow
+sentence-transformers

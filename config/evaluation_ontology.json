@@ -1,0 +1,21 @@
+{
+  "version": "cxr-target-6-v1",
+  "description": "Frozen target-label ontology for CXR RAG evaluation. Labels outside this scope are retained as other findings but excluded from target pathology metrics.",
+  "target_labels": [
+    "Atelectasis",
+    "Cardiomegaly",
+    "Edema",
+    "Pleural Effusion",
+    "Pneumonia",
+    "Pneumothorax"
+  ],
+  "aliases": {
+    "Atelectasis": ["Atelectasis", "Pulmonary Atelectasis"],
+    "Cardiomegaly": ["Cardiomegaly"],
+    "Edema": ["Edema", "Pulmonary Edema"],
+    "Pleural Effusion": ["Pleural Effusion"],
+    "Pneumonia": ["Pneumonia"],
+    "Pneumothorax": ["Pneumothorax", "Hydropneumothorax", "Hemopneumothorax"]
+  },
+  "normal_aliases": ["normal"]
+}

@@ -1,0 +1,112 @@
+# LLM Configuration
+# Tùy chỉnh các settings cho LLM requests
+
+llm:
+  # Model configuration
+  model: "gpt-5.6-luna"
+  provider: "gpt"  # gpt, claude, local, etc.
+
+  # API settings
+  api_key: ${LLM_API_KEY}  # Lấy từ environment variable
+  base_url: "https://api.openai.com/v1"  # Tùy chỉnh nếu cần
+  timeout: 30  # seconds
+  
+  # Generation parameters
+  temperature: null  # use the model default for deterministic report generation
+  max_tokens: 96
+  reasoning_effort: "none"
+  top_p: 0.95
+  top_k: 40
+
+  # Retry configuration
+  retry_attempts: 3
+  retry_delay: 2  # seconds between retries
+
+# Prompt configuration
+prompts:
+  # Chọn prompt template
+  default: "radiology"  # single concise impression is the lowest-cost mode
+  
+  # Custom prompts (override built-in)
+  custom_system: null  # Để null để dùng default
+  custom_user: null
+  
+  # Prompt tuning
+  include_evidence: true
+  include_confidence: true
+  include_similar_cases: true
+  max_similar_cases: 1
+  
+  # Output format
+  format: "markdown"  # markdown, json, plain
+
+# Pipeline configuration
+pipeline:
+  # Enable/disable components
+  run_classifier: true
+  run_retriever: true
+  generate_minimal_json: true
+  send_to_llm: true
+  
+  # LLM specific
+  llm_enabled: true
+  save_response: true
+  response_dir: "data/llm_responses"
+  
+  # Verbosity
+  verbose: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+  # Cost-aware routing: source image is attached only for uncertain retrieval evidence.
+  routing:
+    default_model: "gpt-5.6-luna"
+    escalation_model: "gpt-5.6-terra"
+    uncertain_statuses: ["M", "I", "D"]
+    image_detail: "high"
+
+# Output configuration
+output:
+  # Response handling
+  save_response: true
+  response_format: "json"  # json, txt, markdown
+  response_dir: "data/llm_responses"
+  
+  # Logging
+  log_file: "logs/llm_requests.log"
+  log_session: true
+  session_file: "logs/llm_session.json"
+
+# Feature flags
+features:
+  streaming_response: false  # Stream LLM response in real-time
+  parallel_requests: false   # Send multiple prompts in parallel
+  cache_responses: true      # Cache LLM responses
+  cache_dir: "data/.cache/llm"
+
+# Medical-specific settings
+medical:
+  # Analysis type
+  analysis_type: "diagnostic"  # diagnostic, treatment, risk, qa
+  
+  # Medical context
+  include_severity: true
+  include_differential_diagnosis: true
+  include_recommendations: true
+  
+  # Quality assurance
+  qa_check: true
+  qa_threshold: 0.8  # Quality score threshold
+
+# Model-specific settings (override global settings for specific models)
+models:
+  gpt-5.6-terra:
+    temperature: null
+    max_tokens: 96
+    
+  gpt-4:
+    temperature: 0.5
+    max_tokens: 3000
+    
+  claude-3:
+    temperature: 0.6
+    max_tokens: 2500

@@ -1,0 +1,25 @@
+name: image_search
+prefix: D:\envs\image_search
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - pandas
+  - pillow
+  - pydicom
+  - pyyaml
+  - scikit-image
+  - faiss-cpu
+  - pytorch>=2.2
+  - torchvision>=0.17
+  - safetensors
+  - pip:
+    - chromadb
+    - sentence-transformers
+    - transformers>=4.44,<5
+    - tqdm
+    - scikit-learn
+    - python-dotenv

@@ -1,0 +1,24 @@
+# Configuration for IU Xray ingestion and model defaults
+paths:
+  raw_data_dir: "E:\\IU-Xray"  # set path to IU Xray raw data
+  processed_dir: "data/processed"
+  metadata_path: "data/processed/metadata.jsonl"
+  conda_env_prefix: "D:\\envs\\image_search"  # optional: path to conda env prefix
+preprocessing:
+  preserve_aspect_ratio: true
+  max_long_edge: 1024
+  model_shortest_edge: 518
+  image_format: "png"
+  max_report_length: 4096
+  text_chunk_size: 512
+model:
+  text_embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  image_model: "microsoft/rad-dino-maira-2"
+  # densenet_checkpoint: "model/best_E2_relation_aware_weighted_bce.pt"
+  # CheXpert-pre-adapted RAD-DINO: encoder blocks + CLS/local fusion + 512-D projection.
+  pathology_projection_checkpoint: "model/rad_dino_chexpert_projection_best.pt"
+  device: "cpu"
+retrieval:
+  index_path: "data/embeddings_chexpert_projection/faiss.index"
+  metadata_path: "data/embeddings_chexpert_projection/metadata.jsonl"
+  processed_dir: "data/reprocessed"

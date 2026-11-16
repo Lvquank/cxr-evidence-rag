@@ -1,0 +1,55 @@
+{
+  "version": "relation-aware-densenet121-iu-selective-v1",
+  "checkpoint": "model/best_E2_relation_aware_weighted_bce.pt",
+  "selection_rule": "Selective calibrated thresholding on IU-Xray dev: Pneumonia fixed to 0.203 to eliminate 74 CheXpert FPs, Atelectasis tuned to 0.300 for optimal F1 peak, and other labels preserved to prevent FP inflation.",
+  "labels": {
+    "Atelectasis": {
+      "threshold": 0.300,
+      "dev_tp": 177,
+      "dev_fp": 806,
+      "dev_total_positives": 236,
+      "dev_recall": 0.750000,
+      "dev_precision": 0.180061
+    },
+    "Cardiomegaly": {
+      "threshold": 0.086657,
+      "dev_tp": 230,
+      "dev_fp": 624,
+      "dev_total_positives": 255,
+      "dev_recall": 0.901961,
+      "dev_precision": 0.269321
+    },
+    "Edema": {
+      "threshold": 0.433635,
+      "dev_tp": 27,
+      "dev_fp": 187,
+      "dev_total_positives": 37,
+      "dev_recall": 0.729730,
+      "dev_precision": 0.126168
+    },
+    "Pleural Effusion": {
+      "threshold": 0.390523,
+      "dev_tp": 64,
+      "dev_fp": 256,
+      "dev_total_positives": 80,
+      "dev_recall": 0.800000,
+      "dev_precision": 0.200000
+    },
+    "Pneumonia": {
+      "threshold": 0.203,
+      "dev_tp": 23,
+      "dev_fp": 1039,
+      "dev_total_positives": 28,
+      "dev_recall": 0.821429,
+      "dev_precision": 0.021657
+    },
+    "Pneumothorax": {
+      "threshold": 0.462262,
+      "dev_tp": 0,
+      "dev_fp": 435,
+      "dev_total_positives": 0,
+      "dev_recall": 0.000000,
+      "dev_precision": 0.000000
+    }
+  }
+}

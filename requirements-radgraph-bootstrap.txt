@@ -1,0 +1,10 @@
+# Driver and paired-bootstrap evaluation.
+numpy
+pyyaml
+
+# Install the pinned RadGraph checkout after cloning it to third_party/radgraph:
+#   git clone https://github.com/Stanford-AIMI/radgraph.git third_party/radgraph
+#   git -C third_party/radgraph checkout 87f11a1ff4d2046a838be5f0243857d93780ddec
+#   python -m pip install -e third_party/radgraph
+# RadGraph's historical tokenizer API requires Transformers 4.x.
+transformers>=4.44,<5

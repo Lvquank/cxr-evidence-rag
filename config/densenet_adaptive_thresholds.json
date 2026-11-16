@@ -1,0 +1,13 @@
+{
+  "version": "relation-aware-densenet121-dev-high-recall-v1",
+  "checkpoint": "model/best_E2_relation_aware_weighted_bce.pt",
+  "selection_rule": "Development-set threshold maximizing precision subject to recall >= 0.85.",
+  "labels": {
+    "Atelectasis": {"threshold": 0.370590, "precision_dev": 0.982939, "recall_dev": 0.854111},
+    "Cardiomegaly": {"threshold": 0.086657, "precision_dev": 0.939266, "recall_dev": 0.850021},
+    "Edema": {"threshold": 0.433635, "precision_dev": 0.912009, "recall_dev": 0.850193},
+    "Pleural Effusion": {"threshold": 0.390523, "precision_dev": 0.968360, "recall_dev": 0.850047},
+    "Pneumonia": {"threshold": 0.105821, "precision_dev": 0.726776, "recall_dev": 0.850746},
+    "Pneumothorax": {"threshold": 0.462262, "precision_dev": 0.442773, "recall_dev": 0.850425}
+  }
+}
