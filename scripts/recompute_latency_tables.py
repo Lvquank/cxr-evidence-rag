@@ -1,4 +1,4 @@
-"""Recompute Tables 5/6 from the four frozen October latency runs, using CUDA.
+"""Recompute Tables 5/6 from four completed runs on the frozen cohort, using CUDA.
 
 Run stages separately with .venv-bertscore/Scripts/python.exe. No API calls.
 All selected reports come from latency_per_case.csv, never a latest-file guess.
@@ -127,7 +127,7 @@ def paired_bootstrap(values, metric_names, ids, out, table):
     return payload
 
 
-def prepare(out):
+def prepare(out, expected_lambda_global=None):
     if (out / "input_manifest.json").exists():
         raise ValueError("Preparation already exists; use another output directory.")
     hardware = require_cuda()
@@ -143,12 +143,18 @@ def prepare(out):
     ids = sorted((str(r["study_id"]) for r in reqs), key=int)
     assert len(ids) == len(set(ids)) == 206
     reqmap = {r["request_id"]: str(r["study_id"]) for r in reqs}
+    configs = {name: read_json(ROOT / relative / "run_config.json") for name, relative in RUNS.items()}
+    lambda_global = configs["structured_rule"]["lambda_global"]
+    if not 0 <= lambda_global <= 1 or configs["structured_learned_gate"]["lambda_global"] != lambda_global:
+        raise ValueError("The structured branches must use the same lambda_global in [0, 1].")
+    if expected_lambda_global is not None and lambda_global != expected_lambda_global:
+        raise ValueError(f"Structured lambda_global is {lambda_global}, expected {expected_lambda_global}.")
     response_ids, provenance, all_rows, audit = set(), [], [], {}
     target_stats = {}
     source_files = {reports_path, ROOT/"config/evaluation_ontology.json", ROOT/"data/evaluations/leave_one_out_206_manifest.json"}
     for name, relative in RUNS.items():
         run = ROOT / relative
-        cfg = read_json(run / "run_config.json")
+        cfg = configs[name]
         assert cfg["model"] == "gpt-5.6-luna" and cfg["reasoning_effort"] == EXPECTED_EFFORT and cfg["max_output_tokens"] == EXPECTED_MAX_TOKENS
         assert cfg["device"] == "cuda" and cfg["manifest_sha256"] == sha256(ROOT/"data/evaluations/leave_one_out_206_manifest.json")
         assert read_json(run/"manifest.json")["requests"] == reqs
@@ -206,7 +212,7 @@ def prepare(out):
     canonical, validation = build_canonical_pairs(out/"clinical_pairs", required_count=206, expected_pipelines=tuple(RUNS), empty_reference_policy="exclude")
     write_canonical(canonical, validation, out/"canonical_pairs_205.csv", out/"clinical_cohort.json")
     clinical_ids = validation["study_ids"]
-    save_json(out/"input_manifest.json", {"source_cohort_count":206,"source_study_ids":ids,"clinical_study_count":len(clinical_ids),"excluded_empty_reference_study_ids":validation["excluded_empty_reference_study_ids"],"hardware":hardware,"branches":audit,"source_files":{str(p):sha256(p) for p in sorted(source_files)},"selection_policy":"exact summary path and response_id recorded in latency_per_case.csv; all candidates accounted; never latest-file selection", "missing_handoff_paths":[str(p) for p in [ROOT/"docs/CXR_RAG_LNCS_FINAL_v3_TABLE6_ROUTE_UPDATE_20261027/analysis/recompute_table6_chexbert.py",ROOT/"docs/CXR_RAG_LNCS_FINAL_v3_TABLE6_ROUTE_UPDATE_20261027/LaTeX/paper.tex"] if not p.exists()],"reference_policy":"Table5 uses all 206 canonical Problems labels. Table6 excludes study with both reference fields blank in all branches; no reference substitution.","metric_policy":{"ontology":"cxr-target-6-v1","target_labels":LABELS6,"normal":"Separate binary decision: gold explicit normal with zero target labels; predicted zero target labels. Normal never seventh pathology.","sample_f1":"Mean per-study six-target F1, including both-empty target sets as 1, even with non-target reference findings.","groundedness":"pooled TP/(TP+FP), not mean per-study precision; complement unmatched rate; empty pooled emission=1","clinical_text":"non-empty Findings then Impression, joined with newline","chexbert":"positive-class F1; reference uncertain excluded; reference blank and prediction blank/uncertain are not positive; common reference-only mask","chexbert_14_labels":LABELS14,"chexbert_six_labels":LABELS6,"radgraph":"radgraph-xl, official simple/partial/complete rewards reported as entity/relation/complete"}})
+    save_json(out/"input_manifest.json", {"structured_lambda_global":lambda_global,"source_cohort_count":206,"source_study_ids":ids,"clinical_study_count":len(clinical_ids),"excluded_empty_reference_study_ids":validation["excluded_empty_reference_study_ids"],"hardware":hardware,"branches":audit,"source_files":{str(p):sha256(p) for p in sorted(source_files)},"selection_policy":"exact summary path and response_id recorded in latency_per_case.csv; all candidates accounted; never latest-file selection", "missing_handoff_paths":[str(p) for p in [ROOT/"docs/CXR_RAG_LNCS_FINAL_v3_TABLE6_ROUTE_UPDATE_20261027/analysis/recompute_table6_chexbert.py",ROOT/"docs/CXR_RAG_LNCS_FINAL_v3_TABLE6_ROUTE_UPDATE_20261027/LaTeX/paper.tex"] if not p.exists()],"reference_policy":"Table5 uses all 206 canonical Problems labels. Table6 excludes study with both reference fields blank in all branches; no reference substitution.","metric_policy":{"ontology":"cxr-target-6-v1","target_labels":LABELS6,"normal":"Separate binary decision: gold explicit normal with zero target labels; predicted zero target labels. Normal never seventh pathology.","sample_f1":"Mean per-study six-target F1, including both-empty target sets as 1, even with non-target reference findings.","groundedness":"pooled TP/(TP+FP), not mean per-study precision; complement unmatched rate; empty pooled emission=1","clinical_text":"non-empty Findings then Impression, joined with newline","chexbert":"positive-class F1; reference uncertain excluded; reference blank and prediction blank/uncertain are not positive; common reference-only mask","chexbert_14_labels":LABELS14,"chexbert_six_labels":LABELS6,"radgraph":"radgraph-xl, official simple/partial/complete rewards reported as entity/relation/complete"}})
     save_csv(out/"report_provenance.csv", provenance)
     paired_bootstrap(target_stats, T5, ids, out, "table5")
     print(f"PREPARED: 824 selected reports, Table5 N=206, Table6 N={len(clinical_ids)}; excluded={validation['excluded_empty_reference_study_ids']}",flush=True)
@@ -383,6 +389,7 @@ def self_check():
 def finalize(out):
     require_cuda()
     manifest = read_json(out/"input_manifest.json")
+    lambda_global = manifest.get("structured_lambda_global", manifest["branches"]["structured_rule"]["run_config"]["lambda_global"])
     t5,t6 = read_json(out/"table5_results.json"),read_json(out/"table6_results.json")
     policy = read_json(out/"chexbert_policy_audit.json")
     ids = t6["study_ids"]
@@ -458,15 +465,23 @@ def finalize(out):
     if EXPECTED_EFFORT != "none":
         source_branches=manifest["branches"]
         current=["# Kết quả bốn nhánh chạy mới với reasoning effort high", "", f"Model gpt-5.6-luna; reasoning_effort={EXPECTED_EFFORT}; max_output_tokens={EXPECTED_MAX_TOKENS}; CUDA:0. Sinh lại từ ảnh với inference và API response mới, cache local tắt. Giữ nguyên prompt/evidence/routing riêng của từng nhánh. Các run lịch sử không bị ghi đè.", "", "Nguồn report:", ""]
+        if lambda_global != 0.9:
+            current[0] = f"# Kết quả bốn pipeline với λ={lambda_global:g} ở hai nhánh structured"
+            current[4:4] = [f"Rule và Learned kết hợp {lambda_global:g} × điểm global RAD-DINO + {1 - lambda_global:g} × điểm local DenseNet ở bước rerank bằng chứng. Baseline A dùng classifier và ảnh. Baseline B giữ Top-5 theo điểm global và cung cấp điểm local dưới dạng thông tin mô tả.", ""]
         current += [f"- {name}: {RUNS[name]}; routes={source_branches[name]['routes']}" for name in RUNS]
         current += ["", "Table 5 dùng 206 study và Problems gốc với ontology cxr-target-6-v1. Groundedness là pooled TP/(TP+FP), Sample F1 là mean F1 từng study (both-empty target sets=1). Normal được đánh giá riêng, không thêm thành pathology thứ bảy.", "", "Table 6 dùng cùng 205 study có ít nhất một reference Findings/Impression; loại study 1615 có cả hai trường trống, không tạo reference thay thế. CheXbert positive-class micro F1 dùng mask chung chỉ dựa vào reference: bỏ reference uncertain; blank reference và blank/uncertain prediction không phải positive. Decision hợp lệ 14/6 nhãn: "+str(policy["valid_reference_decisions_14"])+"/"+str(policy["valid_reference_decisions_6"])+". Thứ tự sáu nhãn: "+", ".join(LABELS6)+".", "", "CheXbert/RadGraph được suy luận mới trên GPU; bootstrap bằng CUDA gồm 2.000 resample theo study, seed 20260904. Dùng chung indices giữa bốn nhánh trong từng bảng; chiều delta ghi rõ left_minus_right. RadGraph dùng radgraph-xl và official simple/partial/complete rewards (tên project: entity/relation/complete).", "", *(out/"table5.md").read_text(encoding="utf-8").splitlines(), "", *(out/"table6.md").read_text(encoding="utf-8").splitlines(), "", "## Paired differences", ""]
         for title,table,metrics in [("Table5",t5,T5),("Table6",t6,T6)]:
             for comparison in dict.fromkeys(r["comparison"] for r in table["paired_deltas"]):
                 for metric in metrics:
                     current.append(f"- {title}, {comparison}, {metric}: "+delta(table,comparison,metric))
-        current += ["", "Đối chiếu lịch sử trong old_vs_new.csv chỉ là chênh lệch mô tả. Cache CheXbert lịch sử khác nhãn reference và SHA tokenizer dù cùng văn bản/checkpoint; không diễn giải chênh lệch từ các điểm cũ ~0.9 như tăng/giảm chất lượng. historical_comparability_audit.json ghi chi tiết.", "", "Trần output đã đổi từ 160 ở run none sang 8192 ở run high để chứa reasoning và report text, theo cùng cấu hình cho cả bốn nhánh. Không quy chênh lệch cũ–mới cho riêng effort. 95% CI là percentile nominal, chưa điều chỉnh đa so sánh.", "", "Provenance/kiểm tra: input_manifest.json, report_provenance.csv, evaluator_versions.json, *_raw/inference_manifest.json, final_audit.json và code_snapshot/. Các model forward đều được hook kiểm tra CUDA; RadGraph đã đối chiếu public API; report và source hashes được kiểm tra lại sau khi chạy. Các file bootstrap_indices.npy lưu đúng ma trận resample.", "", "Bản paper TABLE6_ROUTE_UPDATE_20261027 và script CheXbert được handoff chỉ định không có trong workspace. Chưa sửa paper gốc; nội dung cập nhật có trong PAPER_UPDATE_PROPOSAL.md."]
+        interval_note = "95% CI là percentile nominal, chưa điều chỉnh đa so sánh."
+        if lambda_global == 0.9:
+            interval_note = "Trần output đã đổi từ 160 ở run none sang 8192 ở run high để chứa reasoning và report text, theo cùng cấu hình cho cả bốn nhánh. Không quy chênh lệch cũ–mới cho riêng effort. " + interval_note
+        current += ["", "Đối chiếu lịch sử trong old_vs_new.csv chỉ là chênh lệch mô tả. Cache CheXbert lịch sử khác nhãn reference và SHA tokenizer dù cùng văn bản/checkpoint; không diễn giải chênh lệch từ các điểm cũ ~0.9 như tăng/giảm chất lượng. historical_comparability_audit.json ghi chi tiết.", "", interval_note, "", "Provenance/kiểm tra: input_manifest.json, report_provenance.csv, evaluator_versions.json, *_raw/inference_manifest.json, final_audit.json và code_snapshot/. Các model forward đều được hook kiểm tra CUDA; RadGraph đã đối chiếu public API; report và source hashes được kiểm tra lại sau khi chạy. Các file bootstrap_indices.npy lưu đúng ma trận resample.", "", "Bản paper TABLE6_ROUTE_UPDATE_20261027 và script CheXbert được handoff chỉ định không có trong workspace. Chưa sửa paper gốc; nội dung cập nhật có trong PAPER_UPDATE_PROPOSAL.md."]
         (out/"REPORT.md").write_text("\n".join(current)+"\n",encoding="utf-8")
         proposed=["# Đề xuất cập nhật paper — run high mới", "", "Dùng table5.csv (N=206) và table6.csv (N=205) thay toàn bộ số end-to-end và clinical metrics/CI lịch sử. Giữ cấu hình high/8192/CUDA, phiên bản prompt/routing và cohort đúng theo REPORT.md. Bản paper đích hiện không có trên đĩa; chưa áp dụng sửa đổi.", "", "## Results for abstract/conclusion", ""]
+        if lambda_global != 0.9:
+            proposed[0] = f"# Kết quả đề xuất cho paper ở λ={lambda_global:g}"
         for name in RUNS:
             values=[f"{metric}={scores['estimate']:.4f} [{scores['ci95_lower']:.4f}, {scores['ci95_upper']:.4f}]" for table in [t5,t6] for metric,scores in table["absolute"][name].items()]
             proposed.append(name+": "+"; ".join(values)+".")
@@ -486,7 +501,7 @@ def finalize(out):
         dest.parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(path,dest)
         assert sha256(dest)==digest
-    save_json(out/"final_audit.json",{"passed":True,"source_reports":824,"unique_response_ids":len({r['response_id'] for r in provenance}),"all_source_hashes_unchanged":True,"all_model_forwards_cuda":True,"bootstrap_arithmetic_device":"cuda:0","table5_studies":206,"table6_studies":205,"table6_excluded_study_ids":["1615"],"chexbert_valid_decisions14":2784,"chexbert_valid_decisions6":1171,"bootstrap_samples":2000,"seed":20260904,"paired_comparisons_per_table":len(PAIRS),"unavailable":["Primary Table6 N=206: source reference blank for study 1615","Exact handoff paper revision and its CheXbert script are absent; update proposal saved instead"],"source_runs_overwritten":False})
+    save_json(out/"final_audit.json",{"passed":True,"structured_lambda_global":lambda_global,"source_reports":824,"unique_response_ids":len({r['response_id'] for r in provenance}),"all_source_hashes_unchanged":True,"all_model_forwards_cuda":True,"bootstrap_arithmetic_device":"cuda:0","table5_studies":206,"table6_studies":205,"table6_excluded_study_ids":["1615"],"chexbert_valid_decisions14":2784,"chexbert_valid_decisions6":1171,"bootstrap_samples":2000,"seed":20260904,"paired_comparisons_per_table":len(PAIRS),"unavailable":["Primary Table6 N=206: source reference blank for study 1615","Exact handoff paper revision and its CheXbert script are absent; update proposal saved instead"],"source_runs_overwritten":False})
     save_json(out/"output_checksums.json",{str(p.relative_to(out)):sha256(p) for p in sorted(out.rglob("*")) if p.is_file() and p.name!="output_checksums.json"})
     print(f"FINAL AUDIT PASSED: {out}",flush=True)
 
@@ -499,11 +514,13 @@ if __name__=="__main__":
     parser.add_argument("--runs-root",type=Path,help="Root containing structured_rule, structured_learned_gate, and baselines/baseline_a,b.")
     parser.add_argument("--expected-reasoning-effort",default="none")
     parser.add_argument("--expected-max-output-tokens",type=int,default=160)
+    parser.add_argument("--expected-lambda-global",type=float,help="Expected fusion weight in both structured runs.")
     args=parser.parse_args()
     EXPECTED_EFFORT, EXPECTED_MAX_TOKENS = args.expected_reasoning_effort, args.expected_max_output_tokens
     if args.runs_root:
         RUNS={name:str(args.runs_root.resolve()/relative) for name,relative in {"structured_rule":"structured_rule","structured_learned_gate":"structured_learned_gate","baseline_a":"baselines/baseline_a","baseline_b":"baselines/baseline_b"}.items()}
     args.output_dir.mkdir(parents=True,exist_ok=True)
     if args.stage=="self-check": self_check()
+    elif args.stage=="prepare": prepare(args.output_dir,args.expected_lambda_global)
     elif args.stage in ["chexbert","radgraph"]: globals()[args.stage](args.output_dir,args.smoke)
     else: globals()[args.stage](args.output_dir)

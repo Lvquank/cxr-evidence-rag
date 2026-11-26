@@ -286,6 +286,7 @@ def main() -> None:
         "retriever": {
             "model": retriever.model.model_name,
             "local_rerank_enabled": local_reranker is not None,
+            "lambda_global": args.lambda_global,
             "excluded_study_ids": list(args.exclude_study_id),
             "common_evidence": [
                 compact_candidate(candidate)

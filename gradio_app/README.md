@@ -1,61 +1,42 @@
-# CXR Evidence — Gradio
+# CXR Evidence Gradio interface
 
-Chuẩn bị môi trường và các artefact ngoài Git: xem [SETUP.md](../docs/SETUP.md).
+Prepare the research environment and restore the external artifacts before launching the interface. [Setup and external artifacts](../docs/SETUP.md)
 
-Giao diện Gradio cho dự án hiện tại, theo bố cục trắng–xanh ngọc của
-`D:\webKhoaLuan`. Không phụ thuộc runtime vào thư mục tham chiếu đó.
+## Launch on Windows
 
-Chạy từ `D:\image-rag`:
+From the repository root, run `StartGradio.bat` or use PowerShell.
 
 ```powershell
+$env:CXR_RESEARCH_PYTHON = (Get-Command python).Source
 .\StartGradio.ps1
 ```
 
-Hoặc nhấp đúp `StartGradio.bat`. Mở http://127.0.0.1:7860. Dừng bằng Ctrl+C.
-Đổi cổng bằng `-Port 7861`, không mở trình duyệt bằng `-NoBrowser`, chỉ cài
-thư viện bằng `-SetupOnly`.
+Set `CXR_RESEARCH_PYTHON` while your CUDA-enabled research environment is active. Without the variable, the launcher looks for `.venv-bertscore/Scripts/python.exe`. The launcher installs the UI dependencies, including Gradio 6.32.0, into `gradio_app/.venv`.
 
-Môi trường web riêng: `gradio_app/.venv` (Gradio 6.32.0). Worker nghiên cứu dùng
-`.venv-bertscore/Scripts/python.exe` và CUDA hiện có. Có thể chỉ định interpreter
-nghiên cứu bằng biến `CXR_RESEARCH_PYTHON`. Không thay thư viện của môi trường
-nghiên cứu để cài giao diện. Khởi động và xem report lịch sử không gọi API.
+Open <http://127.0.0.1:7860>. Pass `-Port 7861` to change the port, `-NoBrowser` to skip opening the browser, or `-SetupOnly` to install the UI dependencies and exit. Press Ctrl+C to stop the server.
 
-Giao diện có ba mục:
+## Interface
 
-- **Phân tích:** tải 1–10 ảnh PNG/JPEG; chọn DenseNet121/ResNet50, model GPT,
-  reasoning, một phương pháp hoặc cả bốn. Mặc định Luna/high/8192/CUDA,
-  local response cache tắt. Mỗi ảnh được suy luận độc lập.
-- **Nghiên cứu:** đọc Table 5/6 của lượt high hoàn tất 01/11/2026, cùng bảng
-  văn bản đánh giá lại 13/11/2026. Mở 4 report lịch sử theo study không sinh lại.
-- **Lịch sử:** xem lại ca mới, report, classifier, support/non-support, route,
-  gate, response ID và actual token usage; tải JSON gốc.
+- **Analysis** accepts 1–10 PNG or JPEG images and runs each independently. You can choose DenseNet121 or ResNet50, a model, a reasoning effort, and one or all four comparison methods. The defaults are `gpt-5.6-luna`, high reasoning effort, an 8192-token output cap, CUDA, and a disabled local response cache.
+- **Research** displays Tables 5 and 6 from the high-effort run completed on November 1, 2026, and the text evaluation updated on November 13, 2026. Select a study to view the four saved reports. This tab requires the historical result artifacts.
+- **History** shows reports, classifier scores, supporting and matched non-supporting evidence, routing and gate decisions, API response IDs, and actual token usage. You can download the original JSON for a case.
 
-Mỗi ca mới nằm trong `outputs/gradio_cases/<uuid>/`. Không ghi đè output nghiên
-cứu. Trên giao diện, nút phân tích sử dụng endpoint/key từ `.env` qua client hiện
-có và có thể phát sinh phí API. Key không đưa vào frontend.
+Each new case is saved in `outputs/gradio_cases/<uuid>/`. Starting the interface and viewing saved reports use local data. New analyses call the API endpoint configured in `.env` through the research worker and can incur charges. The API key stays with the worker.
 
-DenseNet121 là classifier mặc định. Checkpoint ResNet50 được sao chép nguyên
-byte từ web tham chiếu vào `gradio_app/models/`; SHA-256:
-`a304a6c73a2a0543314cace0fdd31666e1e1534584d0ae41c3a7bdf7e92f08a0`.
-ResNet50 vẫn dùng ngưỡng/gate DenseNet đóng băng, **chưa hiệu chuẩn hoặc kiểm
-định riêng**. Retrieval vẫn dùng bộ trích xuất DenseNet của nghiên cứu.
+## Models and evaluation
 
-Ảnh IU-Xray gốc được nhận diện bằng SHA để loại chính study khỏi truy hồi. Với
-ảnh đã đổi byte/re-encode, nhập Study ID nếu biết. Learned gate dùng đúng fold
-held-out cho study trong folds.json; ca ngoài tập dùng fold 0 đóng băng và ghi
-rõ không phải đánh giá OOF. Không huấn luyện lại gate.
+DenseNet121 is the default classifier. The optional ResNet50 checkpoint belongs in `gradio_app/models/`. Its SHA-256 is `a304a6c73a2a0543314cace0fdd31666e1e1534584d0ae41c3a7bdf7e92f08a0`. ResNet50 uses the frozen DenseNet thresholds and gate settings and still requires separate calibration and validation. Local reranking uses the original DenseNet feature extractor for both classifiers.
 
-Table 5: 206 study; Table 6: cohort chung 205 study, loại study 1615 vì hai
-reference rỗng. Bảng văn bản: Findings 163, Impression 204 reference không rỗng.
-Không tạo reference thay thế, không tính accuracy cho upload không có nhãn.
+The worker matches original IU X-Ray files by SHA-256 so it can exclude the query study from retrieval. Enter a known study ID for a re-encoded image. The learned gate uses the held-out fold recorded in `folds.json` for known studies. External cases use frozen fold 0 as the deployment fallback. Only known studies with held-out folds have out-of-fold predictions.
 
-Kiểm tra backend không gọi API:
+Table 5 covers 206 studies. Table 6 uses the common 205-study clinical cohort because study 1615 has empty Findings and Impression references. The section-specific text evaluation uses 163 Findings and 204 Impression references. Reference text remains empty where missing. Unlabeled uploads have no accuracy score.
+
+## Backend tests
+
+Run from the repository root in your research environment. These tests use local fixtures and require no API calls.
 
 ```powershell
-.\.venv-bertscore\Scripts\python.exe -m unittest discover -s tests -p test_gradio_backend.py -v
+python -m unittest discover -s tests -p test_gradio_backend.py -v
 ```
 
-`app.py` dùng native Gradio components và event callbacks. `styles.css` chỉ định
-kiểu trình bày; không có frontend HTML/JavaScript riêng. `backend.py` quản lý ca
-và subprocess; worker/classifiers/presentation kế thừa adapter tham chiếu,
-không sửa classifiers/retriever/prompts/frozen gate trong nghiên cứu.
+`app.py` defines the Gradio components and callbacks. `styles.css` controls presentation, `backend.py` manages case state and subprocesses, and `worker.py` runs the research pipeline.

@@ -18,7 +18,7 @@ from src.classifier_thresholds import evidence_thresholds, load_classifier_thres
 class LearnedGateLatencyTests(unittest.TestCase):
     def test_resume_keeps_successes_and_archives_failed_attempt(self):
         config = dict(branch="rule", requested=206, device="cuda", model="gpt-5.6-luna",
-                      reasoning_effort="high", max_output_tokens=8192, manifest_sha256="frozen")
+                      reasoning_effort="high", max_output_tokens=8192, lambda_global=0.6, manifest_sha256="frozen")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(resume_rows(root, config, False), ([], 0.0))
@@ -28,11 +28,22 @@ class LearnedGateLatencyTests(unittest.TestCase):
                 {"request_id":"loo_001", "status":"success"}, {"request_id":"loo_002", "status":"failed"}]}))
             with self.assertRaisesRegex(ValueError, "reasoning_effort"):
                 resume_rows(root, {**config, "reasoning_effort":"none"}, True)
+            with self.assertRaisesRegex(ValueError, "lambda_global"):
+                resume_rows(root, {**config, "lambda_global": 0.9}, True)
             rows, elapsed = resume_rows(root, config, True)
             self.assertEqual([r["request_id"] for r in rows], ["loo_001"])
             self.assertEqual(elapsed, 12.)
             self.assertFalse((root / "llm/loo_002").exists())
             self.assertEqual(len(list((root / "failed_attempts").rglob("invalid.txt"))), 1)
+
+    def test_baseline_resume_without_rerank_weight(self):
+        config = dict(branch="baseline_a", requested=206, device="cuda", model="gpt-5.6-luna",
+                      reasoning_effort="high", max_output_tokens=8192, manifest_sha256="frozen")
+        rows = [{"request_id": "loo_001", "status": "success"}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "latency_summary.json").write_text(json.dumps({**config, "batch_wall_s": 2., "results": rows}))
+            self.assertEqual(resume_rows(root, config, True), (rows, 2.0))
 
     def test_rule_summary_does_not_report_io_as_learned_gate_inference(self):
         timings = ["classifier_retriever_s", "rule_evidence_io_s", "llm_pipeline_s", "end_to_end_s"]
