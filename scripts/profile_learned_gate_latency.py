@@ -145,6 +145,8 @@ def resume_rows(root: Path, config: dict, resume: bool) -> tuple[list[dict], flo
     for key in ("branch", "requested", "device", "model", "reasoning_effort", "max_output_tokens", "manifest_sha256"):
         if previous[key] != config[key]:
             raise ValueError(f"Resume configuration differs: {key}")
+    if previous.get("lambda_global") != config.get("lambda_global"):
+        raise ValueError("Resume configuration differs: lambda_global")
     rows = previous["results"]
     if rows and rows[-1]["status"] != "success":
         failed = rows.pop()
@@ -174,10 +176,13 @@ def main() -> None:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--reasoning-effort", choices=("none", "low", "medium", "high", "xhigh", "max"), default="high")
     parser.add_argument("--max-output-tokens", type=int, default=8192)
+    parser.add_argument("--lambda-global", type=float, default=0.9, help="Global retrieval score weight; local weight is 1 minus this value.")
     parser.add_argument("--branch", choices=("learned", "rule"), default="learned")
     parser.add_argument("--preview", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
+    if not 0.0 <= args.lambda_global <= 1.0:
+        parser.error("--lambda-global must be between 0 and 1.")
     if not args.device.startswith("cuda") or not torch.cuda.is_available():
         parser.error("CUDA is required; CPU fallback is disabled.")
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
@@ -193,7 +198,7 @@ def main() -> None:
     config = {
         "branch": args.branch,
         "requested": args.limit, "device": args.device, "model": "gpt-5.6-luna",
-        "reasoning_effort": args.reasoning_effort, "max_output_tokens": args.max_output_tokens, "lambda_global": 0.9,
+        "reasoning_effort": args.reasoning_effort, "max_output_tokens": args.max_output_tokens, "lambda_global": args.lambda_global,
         "gate_threshold": 0.5 if args.branch == "learned" else None, "compact_schema": 5,
         "timing_fields": list(TIMINGS) if args.branch == "learned" else ["classifier_retriever_s", control_timing, "llm_pipeline_s", "end_to_end_s"],
         "manifest": str(args.manifest), "manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
@@ -228,12 +233,16 @@ def main() -> None:
         case_started = time.perf_counter()
         try:
             row["classifier_retriever_s"] = run_logged(
-                classifier_retriever_command(item, raw_path, args.device, 0.9),
+                classifier_retriever_command(item, raw_path, args.device, args.lambda_global),
                 args.output_root / "logs" / f"{request_id}_classifier_retriever.log")
             gate_started = time.perf_counter()
             raw = json.loads(raw_path.read_text(encoding="utf-8"))
-            if raw["retriever"]["excluded_study_ids"] != [study_id]:
+            retriever = raw["retriever"]
+            if retriever["excluded_study_ids"] != [study_id]:
                 raise ValueError("Query study exclusion is missing.")
+            has_selected_labels = bool(raw["classifier"]["selected_labels"])
+            if retriever["lambda_global"] != args.lambda_global or retriever["local_rerank_enabled"] != has_selected_labels:
+                raise ValueError("Evidence retrieval settings differ from the requested reranking configuration.")
             if args.branch == "learned":
                 artifact = joblib.load(GATE_ROOT / "models" / f"fold_{folds[study_id]}.pkl")
                 gated = apply_gate(raw, artifact, study_id)

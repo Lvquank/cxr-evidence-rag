@@ -1,10 +1,10 @@
 # CXR Evidence RAG
 
-An evidence-guided chest X-ray report generation research project combining pathology classification, image retrieval, structured evidence, and multimodal language models.
+CXR Evidence RAG is a research prototype for generating chest X-ray reports. It combines pathology classification, retrieval of similar radiographs, and structured evidence to guide a multimodal language model.
 
 Built with **Python · PyTorch · RAD-DINO · DenseNet121 · FAISS · scikit-learn · Gradio**.
 
-> Research prototype. Generated reports require expert review and are not intended for clinical diagnosis. This repository publishes source code; datasets, trained weights, retrieval indexes, and study-level reports are supplied separately.
+> For research use only. Generated reports require expert review. Obtain datasets, trained weights, retrieval indexes, and study-level reports separately.
 
 ## What it does
 
@@ -31,13 +31,13 @@ flowchart LR
     L --> U[Gradio results and provenance]
 ```
 
-The retrieval score combines global and local similarity:
+The retrieval score is a weighted combination of global and local similarity.
 
 ```text
 score = lambda_global * global_similarity + (1 - lambda_global) * local_similarity
 ```
 
-Classifier probabilities select labels; they are excluded from reference ranking. When evaluating known studies, the query study is excluded from the retrieval gallery.
+Classifier probabilities determine which labels receive evidence. Reference ranking uses image similarities. For known studies, retrieval excludes every image from the query study.
 
 ## Compared methods
 
@@ -54,7 +54,7 @@ The historical evaluation protocol uses **206 studies**. Clinical text evaluatio
 
 ## Getting started
 
-Use Python 3.11+ and an NVIDIA GPU with a CUDA-enabled PyTorch installation for neural inference and clinical evaluators. Check CUDA before starting; do not silently fall back to CPU.
+Use Python 3.11 or newer and an NVIDIA GPU with a CUDA-enabled PyTorch installation for neural inference and clinical evaluation. Verify that PyTorch can access the GPU before starting.
 
 ```powershell
 git clone https://github.com/Lvquank/cxr-evidence-rag.git
@@ -67,9 +67,9 @@ python -c "import torch; assert torch.cuda.is_available(), 'CUDA is required'; p
 Copy-Item .env.example .env
 ```
 
-Set your own API key in `.env`. Model access depends on the configured API endpoint; the experimental model identifier is preserved rather than substituted automatically.
+Set your API key in `.env` and verify that your configured endpoint supports `gpt-5.6-luna`.
 
-Before inference, prepare the dataset, trained checkpoints, gallery, and frozen gate files listed in [Setup and external artifacts](docs/SETUP.md). A fresh clone contains the implementation, not a ready-to-run pretrained system. Unit checks that use synthetic inputs can run without these research assets.
+Before inference, restore the dataset, checkpoints, gallery, and frozen gate files. [Setup and external artifacts](docs/SETUP.md) lists the expected locations. The focused unit tests use synthetic inputs and can run without these assets.
 
 ### Local interface
 
@@ -80,7 +80,7 @@ $env:CXR_RESEARCH_PYTHON = (Get-Command python).Source
 .\StartGradio.ps1
 ```
 
-Open `http://127.0.0.1:7860`. The launcher creates a separate environment for the Gradio dependencies. Historical research views require the original local result artifacts. Starting the interface does not generate reports; submitting a new analysis can incur API charges.
+Open `http://127.0.0.1:7860`. The launcher creates a separate environment for the Gradio dependencies. Historical research views require the original result artifacts. Submitting a new analysis can incur API charges. [Gradio guide](gradio_app/README.md)
 
 ### One-image workflow
 
@@ -90,6 +90,8 @@ python scripts/run_full_pipeline.py --input outputs/my_case/evidence.json --outp
 ```
 
 For a known evaluation study, also pass `--exclude_study_id STUDY_ID` to the evidence command. Use a new output directory for each experiment and preserve existing runs. Run `--help` on individual scripts for their inputs and options. Some legacy scripts retain older defaults; pass CUDA and generation settings explicitly.
+
+The [compact JSON guide](scripts/GENERATE_MINIMAL_JSON_README.md) documents the evidence format and how to create it as a standalone step.
 
 ## Repository map
 
